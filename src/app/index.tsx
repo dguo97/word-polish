@@ -1,61 +1,113 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  useColorScheme,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
+type WordResult = {
+  word: string;
+  partOfSpeech: string;
+  definition: string;
+  examples: string[];
+  synonyms: string[];
+};
+
+// Fake data for now. Later, replace the body of this function with a real API call.
+async function lookupWord(word: string): Promise<WordResult> {
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  return {
+    word,
+    partOfSpeech: 'noun',
+    definition: 'This is a placeholder definition. The AI will write the real one.',
+    examples: [
+      `She looked up the word "${word}" in the dictionary.`,
+      `He used "${word}" in a sentence to remember it.`,
+    ],
+    synonyms: ['example', 'sample', 'placeholder'],
+  };
 }
 
-export default function HomeScreen() {
+export default function DictionaryScreen() {
+  const isDark = useColorScheme() === 'dark';
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<WordResult | null>(null);
+  const [error, setError] = useState('');
+
+  async function handleLookup() {
+    const word = query.trim();
+    if (!word) return;
+    setLoading(true);
+    setError('');
+    try {
+      setResult(await lookupWord(word));
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled">
+          <ThemedText type="title">Dictionary</ThemedText>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            onSubmitEditing={handleLookup}
+            placeholder="Type a word or phrase"
+            placeholderTextColor="#888"
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            style={[styles.input, { color: isDark ? '#fff' : '#000' }]}
           />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
 
-        {Platform.OS === 'web' && <WebBadge />}
+          <Pressable
+            onPress={handleLookup}
+            disabled={loading}
+            style={({ pressed }) => [
+              styles.button,
+              (pressed || loading) && { opacity: 0.6 },
+            ]}>
+            <ThemedText style={styles.buttonText}>Look up</ThemedText>
+          </Pressable>
+
+          {loading && <ActivityIndicator style={styles.spinner} />}
+          {!!error && <ThemedText>{error}</ThemedText>}
+
+          {result && !loading && (
+            <ThemedView type="backgroundElement" style={styles.card}>
+              <ThemedText type="subtitle">{result.word}</ThemedText>
+              <ThemedText type="small">{result.partOfSpeech}</ThemedText>
+
+              <ThemedText style={styles.label}>Definition</ThemedText>
+              <ThemedText>{result.definition}</ThemedText>
+
+              <ThemedText style={styles.label}>Examples</ThemedText>
+              {result.examples.map((example, i) => (
+                <ThemedText key={i}>• {example}</ThemedText>
+              ))}
+
+              <ThemedText style={styles.label}>Synonyms</ThemedText>
+              <ThemedText>{result.synonyms.join(', ')}</ThemedText>
+            </ThemedView>
+          )}
+        </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -64,35 +116,46 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
     flexDirection: 'row',
+    justifyContent: 'center',
   },
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
     maxWidth: MaxContentWidth,
   },
-  heroSection: {
+  content: {
+    padding: 24,
+    gap: 16,
+    paddingBottom: BottomTabInset + 24,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#888',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  button: {
+    backgroundColor: '#2f6fed',
+    borderRadius: 12,
+    paddingVertical: 14,
     alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
   },
-  title: {
-    textAlign: 'center',
+  buttonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
-  code: {
-    textTransform: 'uppercase',
+  spinner: {
+    marginTop: 8,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  card: {
+    borderRadius: 16,
+    padding: 18,
+    gap: 6,
+  },
+  label: {
+    marginTop: 10,
+    fontWeight: '700',
   },
 });
